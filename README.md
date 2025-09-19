@@ -1,2 +1,1 @@
-# diy-rc-airplane
-Arduino Nano와 nRF24L01+ 모듈 사용하였습니다.
+## 2025년 학사학위 전공심화과정 작품제작
