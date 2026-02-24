@@ -241,6 +241,3 @@ const unsigned long SERVO_UPDATE_INTERVAL = 20;  // 20ms마다 1도 이동
 ## 기술문서
 
 각 구성 요소와 알고리즘을 주제별로 설명하는 문서 목록이다. 전체 목차는 [docs/README.md](./docs/README.md)에서 확인할 수 있다.
-
-
-[def]: #기술문서
