@@ -1,469 +1,254 @@
-# DIY 고정익 항공기 제어 시스템
+# [Arduino Nano] nRF24L01+ 기반 DIY RC 항공기 송수신기
 
-<p align="center">
-  <strong>Arduino Nano 기반 RF 무선 제어 시스템 구현 프로젝트</strong>
-</p>
+2.4GHz nRF24L01+ 무선 모듈로 조이스틱 신호를 50Hz로 전송하고, 수신기에서 ESC와 서보를 직접 구동하는 저비용 RC 시스템이다.
 
 ---
 
-## 📊 프로젝트 개요
+<br>
 
-상용 RC 송수신기의 높은 가격과 제한적인 커스터마이징 문제를 해결하기 위해, Arduino Nano와 nRF24L01+ 모듈을 활용한 저비용 DIY 무선 제어 시스템을 설계 및 구현하였습니다. 송신기는 조이스틱 입력을 RF 신호로 전송하고, 수신기는 이를 받아 ESC 및 서보를 제어하여 고정익 항공기를 안정적으로 조종할 수 있습니다.
+## 목차
 
----
-
-## 🎯 문제 정의
-
-기존 상용 RC 송수신기는 다음과 같은 한계가 있습니다:
-
-- 고가의 가격 (10만원 이상)으로 학습 및 실험 목적으로 접근하기 어려움
-- 내부 로직 수정이 불가능하여 특수 기능 추가 및 커스터마이징 제한
-- RF 통신, 센서 제어, 신호 처리 등 핵심 기술을 이해하고 학습할 기회 부족
-- 전력 최적화 및 안전 기능을 직접 설계할 수 없음
-
----
-
-## ✅ 해결 전략
-
-### 1. 저비용 하드웨어 플랫폼 구축
-- Arduino Nano + nRF24L01+ 모듈 활용으로 제작 비용 2~3만원 달성
-- 상용 제품 대비 70% 이상 비용 절감
-
-### 2. 안정적인 RF 통신 구현
-- 50Hz 전송 주기 (20ms 간격)로 실시간 제어 보장
-- Auto-ACK 및 재전송 로직으로 통신 신뢰성 확보
-- 108번 채널, 250kbps 속도로 간섭 최소화
-
-### 3. 다층 안전 시스템 설계
-- 신호 끊김 자동 감지 (1초 이내) 및 페일세이프 모드
-- 전송 실패 시 재시도 (최대 2회) 및 50회 연속 실패 시 자동 재초기화
-- ESC 안전 범위 설정 (1510~2000us)으로 우발적 작동 방지
-
-### 4. 전력 최적화 메커니즘
-- 서보 중립 2초 유지 시 자동 detach로 전력 절약
-- 천천히 움직이기 (20ms마다 1도) 및 스무딩 필터로 전류 급증 방지
-- 데드밴드 적용으로 불필요한 미세 움직임 제거
-
-### 5. 정밀한 조이스틱 캘리브레이션
-- 중립 데드존 설정 (480~540) 및 방향별 값 반전 처리
-- Throttle 특수 처리 (중립 이하는 0으로 매핑)
-- 디버그 모드로 실시간 raw 값 확인 가능
+- [\[Arduino Nano\] nRF24L01+ 기반 DIY RC 항공기 송수신기](#arduino-nano-nrf24l01-기반-diy-rc-항공기-송수신기)
+  - [목차](#목차)
+  - [시스템 구성](#시스템-구성)
+  - [하드웨어 구성](#하드웨어-구성)
+    - [송신기](#송신기)
+    - [수신기](#수신기)
+  - [통신 프로토콜](#통신-프로토콜)
+  - [핵심 구현: 조이스틱 매핑](#핵심-구현-조이스틱-매핑)
+  - [핵심 구현: 신호 안정화](#핵심-구현-신호-안정화)
+    - [스무딩 필터](#스무딩-필터)
+    - [데드밴드](#데드밴드)
+    - [페일세이프](#페일세이프)
+    - [서보 자동 절전](#서보-자동-절전)
+    - [천천히 움직이기](#천천히-움직이기)
+  - [핀 매핑](#핀-매핑)
+    - [송신기](#송신기-1)
+    - [수신기](#수신기-1)
+  - [빌드 환경](#빌드-환경)
+  - [기술문서](#기술문서)
 
 ---
 
-## 🚀 주요 기능
+<br>
 
-### 송신기 (Transmitter)
-- ✅ **3축 조이스틱 제어**: Throttle, Aileron, Elevator 입력 처리
-- ✅ **50Hz RF 전송**: 20ms 간격 실시간 데이터 전송
-- ✅ **자동 재전송 로직**: 최대 2회 재시도로 신뢰성 확보
-- ✅ **디버그 모드**: 전송률, 실패 횟수, 조이스틱 raw 값 실시간 출력
-- ✅ **캘리브레이션 지원**: 중립 데드존 및 범위 조정 가능
-- ✅ **자동 재초기화**: 50회 연속 실패 시 라디오 모듈 리셋
+## 시스템 구성
 
-### 수신기 (Receiver)
-- ✅ **ESC 제어**: DC 모터 속도 조절 (1510~2000us PWM)
-- ✅ **서보 2채널 제어**: Aileron 및 Elevator (30~150° 범위)
-- ✅ **신호 끊김 감지**: 1초 이상 무신호 시 안전 모드 자동 진입
-- ✅ **스무딩 필터**: 급격한 움직임 방지 (계수 0.2)
-- ✅ **데드밴드 적용**: 3도 (중립 근처 5도) 떨림 제거
-- ✅ **서보 자동 절전**: 중립 2초 유지 시 detach로 전력 절약
-- ✅ **천천히 움직이기**: 20ms마다 1도씩 이동하여 전류 급증 방지
+조이스틱 2개 입력이 RF를 통해 50Hz로 전달되고, 수신기가 ESC와 서보 2채널을 직접 구동한다.
 
----
+```mermaid
+flowchart LR
+    subgraph TX["송신기 (Arduino Nano)"]
+        JOY["조이스틱 × 2<br>Throttle · Aileron · Elevator"]
+        MAP["신호 매핑<br>0~1023 → 0~255"]
+        RF_TX["nRF24L01+<br>CH108 · 250kbps · 50Hz"]
+        JOY --> MAP --> RF_TX
+    end
 
-## 🛠️ 기술 스택
+    subgraph RX["수신기 (Arduino Nano)"]
+        RF_RX["nRF24L01+<br>CH108 · 250kbps"]
+        PROC["스무딩 · 데드밴드<br>페일세이프"]
+        ESC["ESC<br>1510~2000µs"]
+        SERVO_A["서보 Aileron<br>30~150°"]
+        SERVO_E["서보 Elevator<br>30~150°"]
+        RF_RX --> PROC
+        PROC --> ESC
+        PROC --> SERVO_A
+        PROC --> SERVO_E
+    end
 
-### Hardware
-- **Arduino Nano**: ATmega328P 기반 마이크로컨트롤러
-- **nRF24L01+**: 2.4GHz RF 통신 모듈
-- **Analog Joystick**: 2축 아날로그 조이스틱 3개
-- **ESC**: DC 모터 전자 속도 제어기
-- **Servo Motor**: SG90 또는 호환 서보 2개
-
-### Software
-- **Arduino IDE**: 펌웨어 개발 환경
-- **RF24 Library**: nRF24L01+ 통신 라이브러리 (by TMRh20)
-- **Servo Library**: 서보 제어 라이브러리 (Arduino 기본 포함)
-- **SPI Library**: SPI 통신 (Arduino 기본 포함)
-
-### Communication Protocol
-- **Channel**: 108
-- **Data Rate**: 250kbps (RF24_250KBPS)
-- **PA Level**: MAX (RF24_PA_MAX)
-- **Frequency**: 50Hz (20ms interval)
-
----
-
-## 📊 시스템 구성도
-
-### 송신기 (Transmitter) 하드웨어
-
-| 구성 요소 | 모델 | 수량 | 연결 핀 |
-|----------|------|------|---------|
-| 마이크로컨트롤러 | Arduino Nano | 1 | - |
-| RF 모듈 | nRF24L01+ | 1 | CE=D2, CSN=D3, SCK=D13, MOSI=D11, MISO=D12 |
-| 조이스틱 (Throttle) | 2축 아날로그 | 1 | A1 (X축) |
-| 조이스틱 (Aileron) | 2축 아날로그 | 1 | A0 (Y축) |
-| 조이스틱 (Elevator) | 2축 아날로그 | 1 | A2 (X축) |
-
-![Transmitter Layout](img/layout-transmitter.png)
-
-### 수신기 (Receiver) 하드웨어
-
-| 구성 요소 | 모델 | 수량 | 연결 핀 |
-|----------|------|------|---------|
-| 마이크로컨트롤러 | Arduino Nano | 1 | - |
-| RF 모듈 | nRF24L01+ | 1 | CE=D2, CSN=D3, SCK=D13, MOSI=D11, MISO=D12 |
-| ESC | - | 1 | D8 (PWM) |
-| 서보 (Aileron) | SG90 또는 호환 | 1 | D9 |
-| 서보 (Elevator) | SG90 또는 호환 | 1 | D10 |
-
-![Receiver Layout](img/layout-receiver.png)
-
----
-
-## 📦 설치 및 실행
-
-### 1. 저장소 클론
-
-```bash
-git clone https://github.com/yourusername/diy-rc-airplane.git
-cd diy-rc-airplane
-```
-
-### 2. 필수 라이브러리 설치
-
-Arduino IDE에서 라이브러리 관리자를 열고 다음을 설치하세요:
-- **RF24** by TMRh20
-
-또는 Arduino CLI 사용:
-
-```bash
-arduino-cli lib install "RF24"
-```
-
-> **참고**: `Servo` 라이브러리는 Arduino IDE에 기본 포함되어 있습니다.
-
-### 3. 하드웨어 연결
-
-위의 **시스템 구성도** 섹션을 참고하여 송신기와 수신기를 각각 조립합니다.
-
-**주의사항**:
-- nRF24L01+ 모듈은 반드시 **3.3V**로 전원 공급
-- 전원 안정화를 위해 10uF 캐패시터 추가 권장
-- ESC는 별도 배터리로 전원 공급 (Arduino와 GND만 공유)
-
-### 4. 코드 업로드
-
-#### 송신기
-1. Arduino IDE에서 `src/transmitter.ino` 파일 열기
-2. 보드 선택: `Tools > Board > Arduino Nano`
-3. 프로세서 선택: `Tools > Processor > ATmega328P (Old Bootloader)`
-4. 포트 선택: `Tools > Port > COM3` (환경에 따라 다름)
-5. 업로드 버튼 클릭
-
-또는 Arduino CLI 사용:
-
-```bash
-arduino-cli compile --fqbn arduino:avr:nano:cpu=atmega328old src/transmitter.ino
-arduino-cli upload -p COM3 --fqbn arduino:avr:nano:cpu=atmega328old src/transmitter.ino
-```
-
-#### 수신기
-1. Arduino IDE에서 `src/receiver.ino` 파일 열기
-2. 동일한 방법으로 보드, 프로세서, 포트 선택
-3. 업로드 버튼 클릭
-
-또는 Arduino CLI 사용:
-
-```bash
-arduino-cli compile --fqbn arduino:avr:nano:cpu=atmega328old src/receiver.ino
-arduino-cli upload -p COM4 --fqbn arduino:avr:nano:cpu=atmega328old src/receiver.ino
-```
-
-### 5. 디버그 모드 활성화
-
-코드 상단에서 `DEBUG_MODE`를 조정하여 시리얼 모니터 출력 제어:
-
-```cpp
-#define DEBUG_MODE 1  // 1: 활성화, 0: 비활성화
-```
-
-시리얼 모니터 설정:
-- 보드 레이트: **9600 bps**
-- 줄 바꿈: **Both NL & CR**
-
-### 6. 출력 결과
-
-#### 송신기 (DEBUG_MODE=1)
-```
-=== RC Glider Transmitter ===
-
-Initializing NRF24L01...
-NRF24L01 initialized OK!
-
-Settings:
-  Channel: 108
-  Data Rate: 250kbps
-  PA Level: MAX
-  Auto-ACK: ON
-
-Ready to transmit!
-================================
-
-TX:50/s [OK]    | T:128 | A:127 | E:127 |    [Raw] T(A1)=512 | A(A0)=510 | E(A2)=515
-```
-
-#### 수신기 (DEBUG_MODE=1)
-```
-=== RC Glider Receiver ===
-ESC: 1510~2000us
-Servo: Slow move enabled
-Ready!
-
-RX:48 | T:128(1755us) | A:90°→90 ON | E:85°→85 ON
-```
-
-### 7. 조이스틱 캘리브레이션
-
-디버그 모드에서 조이스틱 raw 값을 확인하고, `transmitter.ino`에서 중립값 조정:
-
-```cpp
-#define JOY_CENTER_MIN 480  // 실측 중립값 - 30
-#define JOY_CENTER_MAX 540  // 실측 중립값 + 30
+    RF_TX -->|"2.4GHz"| RF_RX
 ```
 
 ---
 
-## 📁 프로젝트 구조
+<br>
 
-```
-diy-rc-airplane/
-├── src/
-│   ├── transmitter.ino       # 송신기 펌웨어
-│   └── receiver.ino          # 수신기 펌웨어
-├── img/
-│   ├── layout-transmitter.png  # 송신기 회로도
-│   ├── layout-receiver.png     # 수신기 회로도
-│   ├── result-1.png           # 완성 사진 1
-│   └── result-2.png           # 완성 사진 2
-├── .gitignore
-└── README.md
-```
+## 하드웨어 구성
+
+### 송신기
+
+| 구성요소 | 모델 | 핀 |
+|---------|------|----|
+| MCU | Arduino Nano (ATmega328P) | — |
+| RF 모듈 | nRF24L01+ | CE=D2, CSN=D3, SPI |
+| 조이스틱 1 (Throttle) | 2축 아날로그 | A1 (위아래 → 모터 속도) |
+| 조이스틱 2 (Aileron/Elevator) | 2축 아날로그 | A0 (좌우 → Aileron), A2 (위아래 → Elevator) |
+
+### 수신기
+
+| 구성요소 | 모델 | 핀 |
+|---------|------|----|
+| MCU | Arduino Nano (ATmega328P) | — |
+| RF 모듈 | nRF24L01+ | CE=D2, CSN=D3, SPI |
+| ESC | — | D8 (PWM) |
+| 서보 Aileron | SG90 또는 호환 | D9 |
+| 서보 Elevator | SG90 또는 호환 | D10 |
 
 ---
 
-## 📐 통신 프로토콜
+<br>
 
-### 데이터 구조체
+## 통신 프로토콜
+
+송신기와 수신기는 4바이트 구조체를 20ms(50Hz) 간격으로 주고받는다.
 
 ```cpp
 struct Signal {
-  byte throttle;   // 0~255 (모터 속도)
-  byte aileron;    // 0~255 (127=중립, 좌우 제어)
-  byte elevator;   // 0~255 (127=중립, 상하 제어)
-  byte rudder;     // 미사용 (예약)
+    byte throttle;  // 0=정지, 1~255=속도
+    byte aileron;   // 0~255 (127=중립)
+    byte elevator;  // 0~255 (127=중립)
+    byte rudder;    // 예약 (항상 127)
 };
 ```
 
-### 신호 매핑
+| 파라미터 | 값 | 설명 |
+|---------|-----|------|
+| 채널 | 108 | 2.4GHz 대역 간섭 최소화 |
+| 데이터 속도 | 250kbps | 낮은 속도 = 도달 거리↑, 신뢰성↑ |
+| PA 레벨 | MAX | 최대 출력 |
+| Auto-ACK | 활성화 | 전송 확인 응답 |
+| 재전송 | setRetries(5, 15) | 5단계 지연, 최대 15회 |
+| 전송 주기 | 20ms (50Hz) | 실시간 제어 |
+| 통신 주소 | `"JBKPJ"` | 5바이트 고정 주소 |
 
-#### 송신기 → 수신기
-- **Throttle**: `0` = 정지, `1~255` = 가속 (ESC 1510~2000us로 변환)
-- **Aileron**: `0` = 우측 최대, `127` = 중립, `255` = 좌측 최대 (30~150°)
-- **Elevator**: `0` = 하강 최대, `127` = 중립, `255` = 상승 최대 (30~150°)
+---
 
-#### RF 설정
+<br>
+
+## 핵심 구현: 조이스틱 매핑
+
+조이스틱 ADC 값(0~1023)을 채널별로 0~255 byte에 매핑한다. 중립 범위(480~540)를 데드존으로 설정하여 센서 오차를 흡수한다.
+
 ```cpp
-채널: 108
-속도: 250kbps (RF24_250KBPS)
-출력: 최대 (RF24_PA_MAX)
-주소: "JBKPJ"
-Auto-ACK: 활성화
-재전송 설정: setRetries(5, 15)
+#define JOY_CENTER_MIN 480  // 중립 하한
+#define JOY_CENTER_MAX 540  // 중립 상한
 ```
 
----
-
-## 🎯 성과 지표
-
-### 비용 효율성
-- ✅ **제작 비용**: 약 2~3만원 (상용 제품 10만원 대비 **70% 절감**)
-- ✅ **부품 조달**: 일반 전자부품 상점에서 쉽게 구매 가능
-
-### 통신 안정성
-- ✅ **전송 주파수**: 50Hz (20ms 간격) 달성
-- ✅ **신호 복구**: 끊김 감지 1초 이내, 자동 페일세이프 모드
-- ✅ **재전송 메커니즘**: 전송 실패 시 최대 2회 재시도
-
-### 제어 정밀도
-- ✅ **서보 각도 범위**: 30~150° (120° 가동 범위)
-- ✅ **ESC 펄스 정밀도**: 1510~2000us (490us 분해능)
-- ✅ **응답 속도**: 20ms 업데이트 주기
-
-### 안전 기능
-- ✅ **3중 안전장치**: 신호 끊김 감지, 재전송, 자동 재초기화
-- ✅ **전력 최적화**: 서보 자동 절전 (중립 2초 유지 시)
-- ✅ **전류 보호**: 천천히 움직이기 + 스무딩 필터
-
----
-
-## 🔧 파라미터 튜닝 가이드
-
-### 송신기 (transmitter.ino)
-| 파라미터 | 위치 | 기본값 | 설명 |
-|---------|------|-------|------|
-| `TRANSMIT_INTERVAL` | 62행 | 20ms | 전송 주기 (50Hz) |
-| `JOY_CENTER_MIN` | 35행 | 480 | 조이스틱 중립 하한 |
-| `JOY_CENTER_MAX` | 36행 | 540 | 조이스틱 중립 상한 |
-
-### 수신기 (receiver.ino)
-| 파라미터 | 위치 | 기본값 | 설명 |
-|---------|------|-------|------|
-| `SMOOTHING` | 74행 | 0.2 | 스무딩 계수 (0.0~1.0, 클수록 빠름) |
-| `SERVO_UPDATE_INTERVAL` | 85행 | 20ms | 서보 업데이트 주기 |
-| `ESC_MIN` | 41행 | 1510us | ESC 최소 펄스 (측정 필요) |
-| `ESC_MAX` | 42행 | 2000us | ESC 최대 펄스 |
-| `SERVO_MIN` | 34행 | 30° | 서보 최소 각도 |
-| `SERVO_MAX` | 35행 | 150° | 서보 최대 각도 |
-
----
-
-## 🔧 주요 코드 구조
-
-### 송신기 핵심 함수
 ```cpp
-bool initRadio()           // RF 모듈 초기화 (재시도 포함)
-byte mapThrottle()         // Throttle 조이스틱 값 매핑 (0~255)
-byte mapAileron()          // Aileron 조이스틱 값 매핑 (데드존 적용)
-byte mapElevator()         // Elevator 조이스틱 값 매핑 (값 반전)
-void readJoysticks()       // 조이스틱 값 읽기 및 구조체 저장
+// Throttle: 값 반전(위=최대), 중립 이하는 0
+byte mapThrottle(int rawValue) {
+    int inverted = JOY_MAX - rawValue;
+    if (inverted < JOY_CENTER_MAX) return 0;
+    return map(inverted, JOY_CENTER_MAX, JOY_MAX, 0, 255);
+}
+
+// Aileron: 데드존 적용, 중립=127
+byte mapAileron(int rawValue) {
+    if (rawValue >= JOY_CENTER_MIN && rawValue <= JOY_CENTER_MAX) return 127;
+    if (rawValue < JOY_CENTER_MIN)
+        return map(rawValue, JOY_MIN, JOY_CENTER_MIN, 0, 126);
+    return map(rawValue, JOY_CENTER_MAX, JOY_MAX, 128, 255);
+}
+
+// Elevator: 값 반전 + 데드존, 중립=127
+byte mapElevator(int rawValue) {
+    int inverted = JOY_MAX - rawValue;
+    // Aileron과 동일 로직 (반전된 값으로 적용)
+}
 ```
 
-### 수신기 핵심 함수
+| 채널 | ADC 핀 | 중립값 | 특이사항 |
+|------|--------|--------|---------|
+| Throttle | A1 | 0 (정지) | 중립 이하 → 0, 위=최대 |
+| Aileron | A0 | 127 | 데드존 적용 |
+| Elevator | A2 | 127 | 값 반전 + 데드존 |
+
+---
+
+<br>
+
+## 핵심 구현: 신호 안정화
+
+수신기에서 급격한 서보 움직임을 방지하고 신호 끊김을 안전하게 처리한다.
+
+### 스무딩 필터
+
 ```cpp
-void ResetData()           // 신호 끊김 시 안전 값 설정
-int applyDeadband()        // 데드밴드 적용 (떨림 제거)
+const float SMOOTHING = 0.2;
+smoothed = smoothed * (1.0 - SMOOTHING) + target * SMOOTHING;
 ```
 
-### 통신 흐름
-1. **송신기**: 조이스틱 읽기 → 매핑 → RF 전송 (50Hz)
-2. **수신기**: RF 수신 → 스무딩 → 데드밴드 → 서보/ESC 출력
+이전 값 80%, 새 값 20%를 반영한다. 값을 낮출수록 움직임이 부드러워진다.
 
----
+### 데드밴드
 
-## 🛠️ 트러블슈팅
+서보 목표값이 현재값과 3도 이내이면 이동하지 않는다. 중립(85~95도) 근처는 5도로 확대하여 미세 떨림을 제거한다.
 
-### 문제: nRF24L01 초기화 실패
-**증상**:
-```
-ERROR: NRF24L01 init failed!
-```
+### 페일세이프
 
-**원인**:
-- 전원 불안정 (3.3V 미공급 또는 전압 강하)
-- SPI 배선 오류
-- 불량 모듈
+마지막 수신 후 1초 이상 신호가 없으면 `ResetData()`로 안전값을 설정한다.
 
-**해결 방법**:
-1. nRF24L01+ 모듈에 **3.3V** 정확히 공급 확인
-2. 10uF~100uF 캐패시터를 VCC-GND 사이에 추가
-3. SPI 핀 배선 재확인:
-   - CE → D2
-   - CSN → D3
-   - SCK → D13
-   - MOSI → D11
-   - MISO → D12
-4. 다른 nRF24L01+ 모듈로 교체 테스트
-
----
-
-### 문제: 통신 끊김 및 불안정
-**증상**:
-```
-!!! WARNING: Connection unstable !!!
+```cpp
+void ResetData() {
+    data.throttle = 0;    // 모터 정지
+    data.aileron  = 127;  // 서보 중립
+    data.elevator = 127;  // 서보 중립
+}
 ```
 
-**원인**:
-- 전파 간섭 (WiFi, Bluetooth 등)
-- 통신 거리 과다
-- 안테나 불량
+### 서보 자동 절전
 
-**해결 방법**:
-1. 채널 변경: `radio.setChannel(108)` → 다른 채널 (0~125)
-2. nRF24L01+ **+PA+LNA** 모듈로 교체 (장거리 통신)
-3. 안테나 각도 조정 및 장애물 제거
+중립(±5~10도) 위치에서 2초 이상 머물면 `detach()`하여 전력을 절약하고, 중립을 벗어나면 즉시 `attach()`한다.
 
----
+### 천천히 움직이기
 
-### 문제: 서보 떨림 (Jittering)
-**증상**:
-- 서보가 중립 위치에서 미세하게 떨림
+20ms마다 최대 1도씩 이동하여 전류 급증을 방지한다.
 
-**원인**:
-- 전원 노이즈
-- 스무딩 부족
-- 데드밴드 설정 부족
-
-**해결 방법**:
-1. `SMOOTHING` 값 낮추기: `0.2` → `0.1` (receiver.ino:74)
-2. 데드밴드 확대: `applyDeadband()` 함수의 `deadband` 값 증가 (receiver.ino:110)
-3. 서보에 별도 전원 공급 (Arduino와 GND만 공유)
-4. 전원 라인에 캐패시터 추가
+```cpp
+const unsigned long SERVO_UPDATE_INTERVAL = 20;  // 20ms마다 1도 이동
+```
 
 ---
 
-### 문제: ESC 작동 안함
-**증상**:
-- 모터가 전혀 회전하지 않음
-- ESC에서 경고음 발생
+<br>
 
-**원인**:
-- ESC 캘리브레이션 미수행
-- PWM 펄스 범위 불일치
-- 배선 오류
+## 핀 매핑
 
-**해결 방법**:
-1. ESC 매뉴얼 참고하여 캘리브레이션 수행
-2. `ESC_MIN` 값 조정 (receiver.ino:41):
-   - 일반적 범위: 1000~1500us (최소), 1500~2000us (최대)
-   - ESC 사양 확인 필수
-3. ESC 신호선 연결 확인 (D8)
-4. 배터리 전압 확인 (ESC 사양에 맞는 전압)
+### 송신기
 
----
+| 핀 | 신호 | 설명 |
+|----|------|------|
+| D2 | nRF24 CE | RF 모듈 칩 Enable |
+| D3 | nRF24 CSN | SPI 칩 셀렉트 |
+| D11 | SPI MOSI | RF 데이터 출력 |
+| D12 | SPI MISO | RF 데이터 입력 |
+| D13 | SPI SCK | RF 클럭 |
+| A0 | 조이스틱 2 X축 | Aileron 좌우 입력 |
+| A1 | 조이스틱 1 Y축 | Throttle 모터 속도 입력 |
+| A2 | 조이스틱 2 Y축 | Elevator 상하 입력 |
 
-### 문제: 조이스틱 중립 위치 오류
-**증상**:
-- 조이스틱을 놓아도 서보가 중립으로 가지 않음
+### 수신기
 
-**해결 방법**:
-1. 디버그 모드 활성화 (`DEBUG_MODE 1`)
-2. 시리얼 모니터에서 조이스틱 raw 값 확인
-3. 중립값을 측정하여 `transmitter.ino`에서 조정:
-   ```cpp
-   #define JOY_CENTER_MIN [측정값 - 30]
-   #define JOY_CENTER_MAX [측정값 + 30]
-   ```
+| 핀 | 신호 | 설명 |
+|----|------|------|
+| D2 | nRF24 CE | RF 모듈 칩 Enable |
+| D3 | nRF24 CSN | SPI 칩 셀렉트 |
+| D8 | ESC PWM | 모터 속도 (1510~2000µs) |
+| D9 | Aileron 서보 | 좌우 조종면 (30~150°) |
+| D10 | Elevator 서보 | 상하 조종면 (30~150°) |
+| D11 | SPI MOSI | RF 데이터 출력 |
+| D12 | SPI MISO | RF 데이터 입력 |
+| D13 | SPI SCK | RF 클럭 |
 
 ---
 
-## 📸 완성 사진
+<br>
 
-![Result 1](img/result-1.png)
-![Result 2](img/result-2.png)
+## 빌드 환경
+
+| 항목 | 내용 |
+|------|------|
+| IDE | Arduino IDE 2.x |
+| 보드 | Arduino Nano |
+| 프로세서 | ATmega328P (Old Bootloader) |
+| 라이브러리 | RF24 by TMRh20, Servo (Arduino 기본) |
+| 디버그 통신 | UART 9600 baud (`#define DEBUG_MODE 1`) |
 
 ---
 
-## 👨‍💻 개발자
+<br>
 
-- **GitHub**: [@jaebinary](https://github.com/jaebinary)
+## 기술문서
 
----
-
-## 📚 참고 자료
-
-- [nRF24L01+ Datasheet](https://www.nordicsemi.com/products/nrf24-series)
-- [RF24 Library Documentation](https://nrf24.github.io/RF24/)
-- [Arduino Servo Library Reference](https://www.arduino.cc/reference/en/libraries/servo/)
+각 구성 요소와 알고리즘을 주제별로 설명하는 문서 목록이다. 전체 목차는 [docs/README.md](./docs/README.md)에서 확인할 수 있다.

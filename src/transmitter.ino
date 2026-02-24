@@ -23,9 +23,9 @@
 #define CSN_PIN 3
 
 // 조이스틱 핀 (아날로그 입력)
-#define JOYSTICK_THROTTLE_PIN A1  // 좌측 조이스틱 X축 (DC모터)
-#define JOYSTICK_AILERON_PIN A0   // 좌측 조이스틱 Y축 (좌우 제어)
-#define JOYSTICK_ELEVATOR_PIN A2  // 우측 조이스틱 X축 (상하 제어)
+#define JOYSTICK_THROTTLE_PIN A1  // 조이스틱 1 Y축 (위아래 → 모터 속도)
+#define JOYSTICK_AILERON_PIN A0   // 조이스틱 2 X축 (좌우 → 에일러론)
+#define JOYSTICK_ELEVATOR_PIN A2  // 조이스틱 2 Y축 (위아래 → 엘리베이터)
 #define JOYSTICK_RUDDER_PIN A3    // 미사용
 
 // ========================================
@@ -235,9 +235,9 @@ void setup() {
     Serial.println("  Auto-ACK: ON");
     Serial.println();
     Serial.println("Joystick Mapping:");
-    Serial.println("  A1 (Left X): Throttle (Up=Max, Down=Min)");
-    Serial.println("  A0 (Left Y): Aileron (Left=Max, Right=Min)");
-    Serial.println("  A2 (Right X): Elevator (Up=Max, Down=Min)");
+    Serial.println("  A1 (JOY1 Y): Throttle (Up=Max, Down=Min)");
+    Serial.println("  A0 (JOY2 X): Aileron (Left=Max, Right=Min)");
+    Serial.println("  A2 (JOY2 Y): Elevator (Up=Max, Down=Min)");
     Serial.println();
     Serial.print("  Center: ");
     Serial.print(JOY_CENTER_MIN);
